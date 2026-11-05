@@ -1,0 +1,128 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flask-react-todo-backend"
+version = "1.0.0"
+description = "Flask backend for React Todo App"
+requires-python = ">=3.9"
+dependencies = [
+    "flask>=2.3.0",
+    "flask-sqlalchemy>=3.0.0",
+    "flask-login>=0.6.0",
+    "flask-cors>=4.0.0",
+    "flask-limiter>=3.5.0",
+    "flask-talisman>=1.1.0",
+    "werkzeug>=2.3.0",
+    "pydantic>=2.0.0",
+    "email-validator>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "gunicorn>=21.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-flask>=1.2.0",
+    "pytest-xdist>=3.3.0",
+    "factory-boy>=3.3.0",
+    "faker>=19.0.0",
+    "freezegun>=1.2.0",
+    "responses>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-ra",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "auth: authentication related tests",
+    "todos: todo related tests",
+    "users: user related tests",
+    "models: model related tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/migrations/*",
+    "*/venv/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    "*/.tox/*",
+    "*/.pytest_cache/*",
+    "*/.coverage*",
+    "*/htmlcov/*",
+    "*/dist/*",
+    "*/build/*",
+    "*/.git/*",
+    "*/.venv/*",
+    "*/env/*",
+    "*/ENV/*",
+    "*/instance/*",
+    "*/config.py",
+    "*/extensions.py",
+    "*/wsgi.py",
+    "*/manage.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "pass",
+    "except ImportError:",
+    "def setUp",
+    "def tearDown",
+    "@abstractmethod",
+    "@abstractproperty",
+    "@property",
+    "@staticmethod",
+    "@classmethod",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 80
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Flask React Todo - Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*", "migrations*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.rst", "*.md"]
