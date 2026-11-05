@@ -1,17 +1,49 @@
 """Authentication API endpoints for user registration and login."""
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import IntegrityError
 
 from backend.app.extensions import db
 from backend.app.models import User
 from backend.app.schemas import UserCreate, UserLogin, UserResponse
+from backend.app.utils.decorators import (
+    csrf_protect, 
+    auth_rate_limit, 
+    set_csrf_cookie,
+    generate_csrf_token
+)
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
+@auth_bp.route('/csrf-token', methods=['GET'])
+def get_csrf_token():
+    """Generate and return a CSRF token.
+    
+    Returns:
+        200: CSRF token in response body and set as cookie.
+        The token must be included in the X-CSRF-Token header
+        for all state-changing requests (POST, PUT, PATCH, DELETE).
+    """
+    token = generate_csrf_token()
+    
+    response = make_response(jsonify({
+        'success': True,
+        'data': {
+            'csrf_token': token
+        },
+        'message': 'CSRF token generated'
+    }))
+    
+    # Set CSRF token in cookie for double-submit pattern
+    set_csrf_cookie(response)
+    
+    return response, 200
+
+
 @auth_bp.route('/register', methods=['POST'])
+@auth_rate_limit
 def register():
     """Register a new user.
     
@@ -111,6 +143,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
+@auth_rate_limit
 def login():
     """Authenticate user and create session.
     
@@ -176,15 +209,21 @@ def login():
     # Return user response
     response_data = UserResponse.model_validate(user)
     
-    return jsonify({
+    response = make_response(jsonify({
         'success': True,
         'data': response_data.model_dump(),
         'message': 'Login successful'
-    }), 200
+    }))
+    
+    # Set CSRF token for subsequent requests
+    set_csrf_cookie(response)
+    
+    return response, 200
 
 
 @auth_bp.route('/logout', methods=['POST'])
 @login_required
+@csrf_protect
 def logout():
     """End user session.
     

@@ -20,6 +20,7 @@ from backend.app.schemas import (
     TodoFilterParams,
 )
 from backend.app.api.auth import login_required
+from backend.app.utils.decorators import csrf_protect, strict_rate_limit
 
 # Create blueprint
 todos_bp = Blueprint('todos', __name__, url_prefix='/api/todos')
@@ -151,6 +152,8 @@ def get_todos():
 
 @todos_bp.route('', methods=['POST'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def create_todo():
     """Create a new todo item.
     
@@ -237,6 +240,8 @@ def get_todo(todo_id: str):
 
 @todos_bp.route('/<string:todo_id>', methods=['PUT'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def update_todo(todo_id: str):
     """Update a todo completely (all fields required).
     
@@ -315,6 +320,8 @@ def update_todo(todo_id: str):
 
 @todos_bp.route('/<string:todo_id>', methods=['PATCH'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def patch_todo(todo_id: str):
     """Partially update a todo (fields optional).
     
@@ -337,6 +344,8 @@ def patch_todo(todo_id: str):
 
 @todos_bp.route('/<string:todo_id>', methods=['DELETE'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def delete_todo(todo_id: str):
     """Delete a todo.
     
@@ -379,6 +388,8 @@ def delete_todo(todo_id: str):
 
 @todos_bp.route('/<string:todo_id>/complete', methods=['PATCH'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def mark_complete(todo_id: str):
     """Mark a todo as completed.
     
@@ -423,6 +434,8 @@ def mark_complete(todo_id: str):
 
 @todos_bp.route('/<string:todo_id>/incomplete', methods=['PATCH'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def mark_incomplete(todo_id: str):
     """Mark a todo as not completed.
     
@@ -508,6 +521,8 @@ def get_stats():
 
 @todos_bp.route('/bulk', methods=['POST'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def bulk_update():
     """Perform bulk operations on todos.
     
@@ -573,6 +588,8 @@ def bulk_update():
 
 @todos_bp.route('/completed', methods=['DELETE'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def clear_completed():
     """Delete all completed todos for the current user.
     
@@ -606,6 +623,8 @@ def clear_completed():
 
 @todos_bp.route('/bulk-delete', methods=['POST'])
 @login_required
+@csrf_protect
+@strict_rate_limit
 def bulk_delete():
     """Delete multiple todos by ID.
     
