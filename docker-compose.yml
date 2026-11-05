@@ -1,0 +1,288 @@
+# =============================================================================
+# Flask React Todo App - Production Docker Compose Configuration
+# =============================================================================
+# This file provides a complete production-ready Docker Compose setup for
+# deploying the Flask React Todo App on a VPS or dedicated server.
+#
+# Features:
+# - Multi-service architecture (Nginx, Flask, PostgreSQL)
+# - SSL/TLS termination with Let's Encrypt
+# - Automatic container restart policies
+# - Health checks for all services
+# - Volume persistence for database and SSL certificates
+# - Environment-based configuration
+#
+# Usage:
+#   docker-compose -f docker-compose.yml up -d
+#   docker-compose -f docker-compose.yml logs -f
+#   docker-compose -f docker-compose.yml down
+#
+# Prerequisites:
+#   - Docker Engine 20.10+
+#   - Docker Compose 2.0+
+#   - Domain name pointing to server
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+  # ---------------------------------------------------------------------------
+  # Nginx Reverse Proxy
+  # ---------------------------------------------------------------------------
+  # Handles SSL termination, static file serving, and API request routing
+  # ---------------------------------------------------------------------------
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: todo-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certificates (managed by Certbot or manually)
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # Static files from React build
+      - frontend_build:/usr/share/nginx/html:ro
+      # Nginx configuration
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Let's Encrypt certificates (if using Certbot)
+      - certbot_data:/etc/letsencrypt:ro
+      # Certbot challenge files
+      - certbot_www:/var/www/certbot:ro
+    environment:
+      - NGINX_HOST=${DOMAIN:-localhost}
+      - NGINX_PORT=80
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - todo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Flask Backend API
+  # ---------------------------------------------------------------------------
+  # Python Flask application with Gunicorn WSGI server
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: todo-backend
+    restart: unless-stopped
+    expose:
+      - "5000"
+    environment:
+      # Flask Configuration
+      - FLASK_ENV=production
+      - FLASK_APP=app
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      
+      # Database Configuration
+      - DATABASE_URL=postgresql://${DB_USER:-todoapp}:${DB_PASSWORD}@db:5432/${DB_NAME:-todoapp}
+      
+      # CORS Configuration
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://${DOMAIN}}
+      
+      # Rate Limiting (optional - requires Redis)
+      - RATE_LIMIT_STORAGE_URL=${RATE_LIMIT_STORAGE_URL:-}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Security
+      - SESSION_COOKIE_SECURE=true
+      - SESSION_COOKIE_HTTPONLY=true
+      - SESSION_COOKIE_SAMESITE=Lax
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - todo-network
+      - backend-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  # Primary data store for the application
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: todo-db
+    restart: unless-stopped
+    expose:
+      - "5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-todoapp}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME:-todoapp}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      # Persistent database storage
+      - postgres_data:/var/lib/postgresql/data
+      # Initialization scripts (run on first startup)
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-todoapp} -d ${DB_NAME:-todoapp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache (Optional)
+  # ---------------------------------------------------------------------------
+  # Provides caching and rate limiting support
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: todo-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - with-redis
+      - full-stack
+
+  # ---------------------------------------------------------------------------
+  # Certbot (Let's Encrypt)
+  # ---------------------------------------------------------------------------
+  # Automated SSL certificate management
+  # ---------------------------------------------------------------------------
+  certbot:
+    image: certbot/certbot:latest
+    container_name: todo-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    profiles:
+      - with-ssl
+      - full-stack
+
+  # ---------------------------------------------------------------------------
+  # Frontend Builder (One-time build)
+  # ---------------------------------------------------------------------------
+  # Builds the React frontend and outputs to shared volume
+  # ---------------------------------------------------------------------------
+  frontend-builder:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: build
+    volumes:
+      - frontend_build:/app/dist
+    profiles:
+      - build
+      - setup
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  todo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  backend-network:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data persistence
+  postgres_data:
+    driver: local
+  
+  # Redis data persistence
+  redis_data:
+    driver: local
+  
+  # React build output (shared between builder and nginx)
+  frontend_build:
+    driver: local
+  
+  # Let's Encrypt certificates
+  certbot_data:
+    driver: local
+  
+  # Certbot webroot for ACME challenges
+  certbot_www:
+    driver: local

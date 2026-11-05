@@ -1,0 +1,77 @@
+{
+  "name": "Flask React Todo App",
+  "description": "A production-ready todo application with Flask backend and React frontend",
+  "repository": "https://github.com/yourusername/flask-react-todo",
+  "logo": "https://raw.githubusercontent.com/yourusername/flask-react-todo/main/frontend/public/logo.png",
+  "keywords": [
+    "flask",
+    "react",
+    "todo",
+    "python",
+    "typescript",
+    "postgresql"
+  ],
+  "stack": "container",
+  "env": {
+    "FLASK_ENV": {
+      "description": "Flask environment mode",
+      "value": "production"
+    },
+    "SECRET_KEY": {
+      "description": "Secret key for Flask sessions and JWT tokens",
+      "generator": "secret"
+    },
+    "JWT_SECRET_KEY": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "DATABASE_URL": {
+      "description": "PostgreSQL database connection URL",
+      "required": true
+    },
+    "CORS_ORIGINS": {
+      "description": "Allowed CORS origins (comma-separated)",
+      "value": "https://your-app.herokuapp.com"
+    },
+    "RATE_LIMIT_STORAGE_URL": {
+      "description": "Redis URL for rate limiting (optional)",
+      "required": false
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "image": "heroku/python",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini",
+      "as": "DATABASE"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    },
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "cd backend && flask db upgrade"
+  },
+  "environments": {
+    "review": {
+      "addons": [
+        {
+          "plan": "heroku-postgresql:mini"
+        }
+      ],
+      "scripts": {
+        "postdeploy": "cd backend && flask db upgrade && python seed_demo_data.py"
+      }
+    }
+  }
+}
