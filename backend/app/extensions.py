@@ -22,6 +22,20 @@ limiter = Limiter(
 )
 
 
+@login_manager.user_loader
+def load_user(user_id: str):
+    """Load user by ID for Flask-Login.
+    
+    Args:
+        user_id: The user's UUID as a string
+        
+    Returns:
+        User instance or None if not found
+    """
+    from backend.app.models import User
+    return User.query.get(user_id)
+
+
 def init_extensions(app):
     """Initialize all Flask extensions with the app instance.
     
@@ -33,7 +47,7 @@ def init_extensions(app):
     
     # Initialize Flask-Login
     login_manager.init_app(app)
-    login_manager.login_view = 'api.auth_login'
+    login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Please log in to access this resource.'
     login_manager.login_message_category = 'info'
     
@@ -42,10 +56,11 @@ def init_extensions(app):
         app,
         resources={
             r"/api/*": {
-                "origins": app.config.get('CORS_ORIGINS', ['http://localhost:3000']),
+                "origins": app.config.get('CORS_ORIGINS', ['http://localhost:5173', 'http://localhost:3000']),
                 "supports_credentials": app.config.get('CORS_SUPPORTS_CREDENTIALS', True),
-                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                "expose_headers": ["Content-Type", "X-CSRF-Token"]
             }
         }
     )
